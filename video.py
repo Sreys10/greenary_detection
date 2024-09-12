@@ -18,13 +18,11 @@ min_contour_area = st.sidebar.slider("Minimum Contour Area", 500, 5000, 1000, st
 # Store bounding box records
 bounding_box_records = []
 
-# Toggle camera
-camera_on = st.sidebar.checkbox("Turn Camera On", value=True)
-
-if camera_on:
-    # Start video capture
-    source = cv2.VideoCapture(0)
-
+# Upload video file
+video_file = st.sidebar.file_uploader("Upload Video", type=["mp4", "mov"])
+if video_file:
+    source = cv2.VideoCapture(video_file.read())
+    
     # Initialize variables
     frame_count = 0
     start_time = time.time()
@@ -101,7 +99,7 @@ if camera_on:
     source.release()
 
 else:
-    # When camera is off, show the bounding box records
+    # When no video is uploaded, show the bounding box records
     st.sidebar.subheader("Bounding Box Records")
     if bounding_box_records:
         for record in bounding_box_records:
