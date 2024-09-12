@@ -4,4 +4,4 @@ numpy
 Pillow
 ultralytics
 disutils
-
+python
