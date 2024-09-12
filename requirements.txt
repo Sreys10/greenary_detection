@@ -3,5 +3,4 @@ opencv-python==4.7.0.72
 numpy
 Pillow
 ultralytics
-disutils
-python
+
