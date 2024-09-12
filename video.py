@@ -1,9 +1,9 @@
 import streamlit as st
 import cv2
 import numpy as np
+import time
 from ultralytics import YOLO
 from datetime import datetime
-import tempfile
 
 st.title("Greenary Detection")
 
@@ -22,91 +22,83 @@ bounding_box_records = []
 camera_on = st.sidebar.checkbox("Turn Camera On", value=True)
 
 if camera_on:
-    # Initialize video capture
+    # Start video capture
     source = cv2.VideoCapture(0)
 
-    if not source.isOpened():
-        st.error("Unable to access the camera. Please check your camera connection.")
-    else:
-        # Initialize variables
-        frame_count = 0
-        start_time = time.time()
+    # Initialize variables
+    frame_count = 0
+    start_time = time.time()
 
-        # Streamlit layout for displaying video
-        frame_placeholder = st.empty()
+    # Streamlit layout for displaying video
+    frame_placeholder = st.empty()
 
-        # Define a function to process and display frames
-        def process_frame(frame):
-            # Convert frame to HSV color space for green color detection
-            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    while source.isOpened():
+        ret, frame = source.read()
+        if not ret:
+            st.warning("Failed to capture video stream.")
+            break
 
-            # Define the range of green color in HSV
-            lower_green = np.array([35, 100, 100])
-            upper_green = np.array([85, 255, 255])
+        # Convert frame to HSV color space for green color detection
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-            # Create a mask for green color
-            mask = cv2.inRange(hsv_frame, lower_green, upper_green)
+        # Define the range of green color in HSV
+        lower_green = np.array([35, 100, 100])
+        upper_green = np.array([85, 255, 255])
 
-            # Apply morphological operations to clean up the mask
-            kernel = np.ones((5, 5), np.uint8)
-            mask = cv2.erode(mask, kernel, iterations=1)
-            mask = cv2.dilate(mask, kernel, iterations=2)
+        # Create a mask for green color
+        mask = cv2.inRange(hsv_frame, lower_green, upper_green)
 
-            # Find contours of green regions
-            contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # Apply morphological operations to clean up the mask
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.erode(mask, kernel, iterations=1)
+        mask = cv2.dilate(mask, kernel, iterations=2)
 
-            # YOLO object detection on the original frame
-            results = model(frame, conf=conf_threshold)
+        # Find contours of green regions
+        contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-            # Draw bounding boxes for green regions and log the information
-            greenery_detected = False
-            for contour in contours:
-                x, y, w, h = cv2.boundingRect(contour)
-                # Filter out small areas
-                if cv2.contourArea(contour) > min_contour_area:
-                    greenery_detected = True
-                    # Draw rectangle around green area
-                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                    # Label it as "Greenery"
-                    cv2.putText(frame, "Greenery", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-                    # Log the bounding box information with timestamp and FPS
-                    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    elapsed_time = time.time() - start_time
-                    fps = frame_count / elapsed_time if elapsed_time > 0 else 0
-                    bounding_box_records.append({
-                        "timestamp": current_time,
-                        "coordinates": (x, y, w, h),
-                        "fps": fps
-                    })
+        # YOLO object detection on the original frame
+        results = model(frame, conf=conf_threshold)
 
-            # Convert BGR to RGB for Streamlit display
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Draw bounding boxes for green regions and log the information
+        greenery_detected = False
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            # Filter out small areas
+            if cv2.contourArea(contour) > min_contour_area:
+                greenery_detected = True
+                # Draw rectangle around green area
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                # Label it as "Greenery"
+                cv2.putText(frame, "Greenery", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                # Log the bounding box information with timestamp and FPS
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                elapsed_time = time.time() - start_time
+                fps = frame_count / elapsed_time if elapsed_time > 0 else 0
+                bounding_box_records.append({
+                    "timestamp": current_time,
+                    "coordinates": (x, y, w, h),
+                    "fps": fps
+                })
 
-            # Update the Streamlit frame display
-            frame_placeholder.image(frame_rgb, channels="RGB")
+        # Convert BGR to RGB for Streamlit display
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Calculate FPS
-            frame_count += 1
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            fps = frame_count / elapsed_time if elapsed_time > 0 else 0
-            st.sidebar.text(f"FPS: {fps:.2f}")
+        # Update the Streamlit frame display
+        frame_placeholder.image(frame_rgb, channels="RGB")
 
-        # Process and display video frames
-        while True:
-            ret, frame = source.read()
-            if not ret:
-                st.warning("Failed to capture video stream.")
-                break
+        # Calculate FPS
+        frame_count += 1
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        fps = frame_count / elapsed_time if elapsed_time > 0 else 0
+        st.sidebar.text(f"FPS: {fps:.2f}")
 
-            process_frame(frame)
+        # Break the loop when the "Stop" button is pressed, using a unique key per iteration
+        if st.sidebar.button("Stop", key=f"stop_button_{frame_count}"):
+            break
 
-            # Break the loop when the "Stop" button is pressed, using a unique key per iteration
-            if st.sidebar.button("Stop"):
-                break
-
-        # Release the video source
-        source.release()
+    # Release the video source
+    source.release()
 
 else:
     # When camera is off, show the bounding box records
